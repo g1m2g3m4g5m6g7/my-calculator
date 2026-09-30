@@ -1,0 +1,1979 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>عالم الأشكال ثلاثي الأبعاد - 3D Shape World</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js Library CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
+        
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            font-family: 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #38bdf8 !important;
+            color: #ffffff;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            background-color: #38bdf8;
+        }
+
+        /* Center Aim Crosshair & Visual Arrow Pointer Indicator */
+        #crosshair-wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #pointer-arrow {
+            color: #f59e0b;
+            font-size: 1.5rem;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+            animation: bounceArrow 1.2s infinite ease-in-out;
+            margin-bottom: -4px;
+        }
+
+        @keyframes bounceArrow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        #crosshair {
+            position: relative;
+            width: 22px;
+            height: 22px;
+        }
+
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 0 6px rgba(0,0,0,0.7);
+            border-radius: 2px;
+        }
+
+        #crosshair::before {
+            top: 10px;
+            left: 0;
+            width: 22px;
+            height: 2px;
+        }
+
+        #crosshair::after {
+            top: 0;
+            left: 10px;
+            width: 2px;
+            height: 22px;
+        }
+
+        /* Hide Scrollbars */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .active-shape {
+            border-color: #f59e0b !important;
+            background-color: rgba(245, 158, 11, 0.35) !important;
+            transform: scale(1.05);
+        }
+
+        .active-color {
+            border-color: #ffffff !important;
+            transform: scale(1.15);
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.9);
+        }
+
+        #touch-look-zone {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            touch-action: none;
+        }
+
+        /* Dynamic Responsive Layout Adjustments & Orientation Handler */
+        @media (orientation: landscape) {
+            #dpad-controls {
+                bottom: 12px !important;
+                right: 12px !important;
+                width: 120px !important;
+                height: 120px !important;
+            }
+            #look-dpad-controls {
+                bottom: 12px !important;
+                left: 12px !important;
+                width: 120px !important;
+                height: 120px !important;
+            }
+            #mobile-controls {
+                bottom: 140px !important;
+                left: 12px !important;
+                flex-direction: column !important;
+            }
+            .bottom-dock {
+                bottom: 6px !important;
+                max-width: 58% !important;
+                padding: 0.35rem !important;
+            }
+            #fly-controls {
+                top: 25% !important;
+                right: 12px !important;
+            }
+        }
+
+        @media (orientation: portrait) {
+            #dpad-controls {
+                bottom: 105px !important;
+                right: 10px !important;
+                width: 115px !important;
+                height: 115px !important;
+            }
+            #look-dpad-controls {
+                bottom: 105px !important;
+                left: 10px !important;
+                width: 115px !important;
+                height: 115px !important;
+            }
+            #mobile-controls {
+                bottom: 230px !important;
+                left: 10px !important;
+                flex-direction: row !important;
+            }
+            .bottom-dock {
+                bottom: 8px !important;
+                width: 96% !important;
+            }
+            #fly-controls {
+                top: 28% !important;
+                right: 8px !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-sky-400">
+    <div id="canvas-container"></div>
+    <div id="touch-look-zone"></div>
+
+    <!-- Center Aim Pointer & Crosshair -->
+    <div id="crosshair-wrapper">
+        <i id="pointer-arrow" class="fa-solid fa-location-arrow -rotate-45"></i>
+        <div id="crosshair"></div>
+    </div>
+
+    <!-- Toast Feedback Banner -->
+    <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 opacity-0 pointer-events-none">
+        <div class="glass-panel text-white text-xs font-bold px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 border border-amber-400/40">
+            <i id="toast-icon" class="fa-solid fa-circle-info text-amber-400 text-sm"></i>
+            <span id="toast-msg">تنبيه</span>
+        </div>
+    </div>
+
+    <!-- Top Header Navigation & Action Bar -->
+    <div id="top-bar" class="fixed top-2 left-2 right-2 z-20 flex items-center justify-between gap-1.5 pointer-events-auto">
+        <div class="flex items-center gap-1.5 glass-panel px-2.5 py-1.5 rounded-2xl shadow-xl">
+            <button id="btn-open-worlds" title="إدارة العوالم المحفوظة" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-2.5 py-1 rounded-xl font-black text-xs flex items-center gap-1 transition-all shadow">
+                <i class="fa-solid fa-globe"></i>
+                <span id="active-world-label" class="max-w-[70px] truncate">العالم</span>
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <div title="عدد القطع المبنية" class="text-xs font-black text-amber-300 flex items-center gap-1">
+                <i class="fa-solid fa-cubes text-xs"></i>
+                <span id="block-count">0</span>
+            </div>
+            <!-- Device Orientation Badge -->
+            <div id="orientation-badge" class="hidden sm:flex items-center gap-1 bg-sky-900/60 px-2 py-0.5 rounded-lg text-[10px] text-sky-300 font-bold border border-sky-400/30">
+                <i class="fa-solid fa-mobile-screen"></i>
+                <span id="orientation-text">عمودي</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-1 overflow-x-auto no-scrollbar glass-panel p-1 rounded-2xl shadow-xl max-w-[65%] sm:max-w-none">
+            <button id="btn-fly-toggle" title="وضع الطيران" class="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all">
+                <i class="fa-solid fa-plane"></i>
+                <span id="fly-status-text" class="hidden sm:inline">مشياً</span>
+            </button>
+            <button id="btn-zoom-in" title="تكبير الرؤية" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs flex items-center justify-center">
+                <i class="fa-solid fa-magnifying-glass-plus"></i>
+            </button>
+            <button id="btn-zoom-out" title="تصغير الرؤية" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs flex items-center justify-center">
+                <i class="fa-solid fa-magnifying-glass-minus"></i>
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button id="btn-build-placement-mode" title="نوع زر البناء (ملامس أو حر)" class="px-2 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all">
+                <i class="fa-solid fa-magnet text-amber-200"></i>
+                <span id="placement-mode-text" class="hidden md:inline">بناء ملاصق</span>
+            </button>
+            <button id="btn-rotate-tool" title="أداة التدوير الدائري" class="p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all">
+                <i class="fa-solid fa-rotate"></i>
+            </button>
+            <button id="btn-inspect-toggle" title="فحص القياسات" class="p-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all">
+                <i class="fa-solid fa-ruler-combined"></i>
+            </button>
+            <button id="btn-honeycomb-preset" title="بناء خلايا النحل" class="p-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1 transition-all">
+                🐝
+            </button>
+            <button id="btn-transform-menu" title="التحكم بالأبعاد والانحناء" class="p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all">
+                <i class="fa-solid fa-sliders"></i>
+            </button>
+            <button id="btn-copy-menu" title="أدوات النسخ واللصق" class="p-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all">
+                <i class="fa-solid fa-copy"></i>
+            </button>
+            <button id="btn-open-library" title="المكتبة العامة للمجسمات" class="p-1.5 bg-pink-600 hover:bg-pink-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all">
+                <i class="fa-solid fa-boxes-stacked"></i>
+            </button>
+            <button id="btn-help" title="تعليمات اللعب" class="p-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs flex items-center justify-center">
+                <i class="fa-solid fa-circle-question"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Dynamic Directional D-Pad (Right side - Player Movement) -->
+    <div id="dpad-controls" dir="ltr" class="fixed z-20 grid grid-cols-3 gap-1.5 w-32 h-32 p-1.5 glass-panel rounded-2xl pointer-events-auto shadow-2xl">
+        <div></div>
+        <button id="btn-move-fwd" title="للأمام" class="bg-amber-600/90 active:bg-amber-500 text-white rounded-xl flex items-center justify-center text-lg shadow active:scale-95 transition-all"><i class="fa-solid fa-arrow-up"></i></button>
+        <div></div>
+        <button id="btn-move-left" title="لليسار" class="bg-amber-600/90 active:bg-amber-500 text-white rounded-xl flex items-center justify-center text-lg shadow active:scale-95 transition-all"><i class="fa-solid fa-arrow-left"></i></button>
+        <div class="flex flex-col items-center justify-center text-[9px] font-black text-amber-300 leading-tight">
+            <span>حركة</span>
+            <i class="fa-solid fa-walking text-[10px] mt-0.5"></i>
+        </div>
+        <button id="btn-move-right" title="لليمين" class="bg-amber-600/90 active:bg-amber-500 text-white rounded-xl flex items-center justify-center text-lg shadow active:scale-95 transition-all"><i class="fa-solid fa-arrow-right"></i></button>
+        <div></div>
+        <button id="btn-move-bwd" title="للخلف" class="bg-amber-600/90 active:bg-amber-500 text-white rounded-xl flex items-center justify-center text-lg shadow active:scale-95 transition-all"><i class="fa-solid fa-arrow-down"></i></button>
+        <div></div>
+    </div>
+
+    <!-- Aim / Camera Look D-Pad (Left side - Single Pointer Steering) -->
+    <div id="look-dpad-controls" dir="ltr" class="fixed z-20 grid grid-cols-3 gap-1.5 w-32 h-32 p-1.5 glass-panel rounded-2xl pointer-events-auto shadow-2xl border-2 border-sky-400/40">
+        <div></div>
+        <button id="btn-look-up" title="توجيه السهم لأعلى" class="bg-sky-600/90 active:bg-sky-500 text-white rounded-xl flex items-center justify-center text-lg shadow active:scale-95 transition-all"><i class="fa-solid fa-chevron-up"></i></button>
+        <div></div>
+        <button id="btn-look-left" title="توجيه السهم لليسار" class="bg-sky-600/90 active:bg-sky-500 text-white rounded-xl flex items-center justify-center text-lg shadow active:scale-95 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
+        <div class="flex flex-col items-center justify-center text-[9px] font-black text-sky-300 leading-tight">
+            <span>السهم</span>
+            <i class="fa-solid fa-location-arrow text-[10px] mt-0.5"></i>
+        </div>
+        <button id="btn-look-right" title="توجيه السهم لليمين" class="bg-sky-600/90 active:bg-sky-500 text-white rounded-xl flex items-center justify-center text-lg shadow active:scale-95 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
+        <div></div>
+        <button id="btn-look-down" title="توجيه السهم لأسفل" class="bg-sky-600/90 active:bg-sky-500 text-white rounded-xl flex items-center justify-center text-lg shadow active:scale-95 transition-all"><i class="fa-solid fa-chevron-down"></i></button>
+        <div></div>
+    </div>
+
+    <!-- Vertical Flight Altitude Controls -->
+    <div id="fly-controls" class="fixed z-20 flex flex-col gap-2 pointer-events-auto hidden">
+        <button id="btn-fly-up" title="الصعود لأعلى" class="w-10 h-10 bg-sky-600 active:bg-sky-500 text-white rounded-xl shadow-lg flex items-center justify-center text-lg">
+            <i class="fa-solid fa-arrow-up-long"></i>
+        </button>
+        <button id="btn-fly-down" title="الهبوط لأسفل" class="w-10 h-10 bg-sky-600 active:bg-sky-500 text-white rounded-xl shadow-lg flex items-center justify-center text-lg">
+            <i class="fa-solid fa-arrow-down-long"></i>
+        </button>
+    </div>
+
+    <!-- Mobile Action Buttons -->
+    <div id="mobile-controls" class="fixed z-20 flex flex-col gap-2.5 pointer-events-auto">
+        <button id="btn-mobile-action" title="إضافة / بناء في اتجاه النيشان" class="w-12 h-12 bg-emerald-600 active:bg-emerald-700 text-white rounded-full shadow-lg flex items-center justify-center text-xl font-bold transition-all border-2 border-white/20">
+            <i class="fa-solid fa-plus"></i>
+        </button>
+        <button id="btn-mobile-mode" title="نمط بناء / تدمير" class="w-11 h-11 bg-amber-600 active:bg-amber-700 text-white rounded-full shadow-lg flex items-center justify-center text-base transition-all border-2 border-white/20">
+            <i class="fa-solid fa-hammer"></i>
+        </button>
+        <button id="btn-mobile-jump" title="قفز" class="w-11 h-11 bg-blue-600 active:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center text-base transition-all border-2 border-white/20">
+            <i class="fa-solid fa-arrow-up"></i>
+        </button>
+    </div>
+
+    <!-- Floating 3D Block Rotate Widget -->
+    <div id="block-rotate-container" class="fixed z-30 hidden pointer-events-auto flex-col items-center transition-opacity">
+        <div class="bg-amber-500 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full shadow mb-1 flex items-center gap-1 border border-white">
+            <i class="fa-solid fa-rotate-right"></i>
+            <span id="block-rotate-angle-badge">0°</span>
+        </div>
+        <button id="block-rotate-circle-btn" title="تدوير القطعة ثلاثية الأبعاد" class="w-12 h-12 bg-amber-500 hover:bg-amber-400 active:scale-90 text-slate-950 font-black rounded-full shadow-2xl flex items-center justify-center text-xl border-2 border-white transition-all">
+            <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
+    </div>
+
+    <!-- Bottom Dock Toolbar -->
+    <div class="fixed bottom-2 left-1/2 -translate-x-1/2 z-20 bottom-dock glass-panel p-2 rounded-2xl flex flex-col gap-2 shadow-2xl">
+        <div class="flex items-center justify-between gap-1.5 border-b border-white/10 pb-1.5 overflow-x-auto no-scrollbar">
+            <div class="flex items-center gap-1.5 w-full sm:w-auto justify-center">
+                <button data-shape="hex" class="shape-btn active-shape px-2.5 py-1 rounded-xl border border-white/10 bg-slate-800/80 hover:bg-slate-700 text-xs font-bold flex items-center justify-center gap-1 transition-all whitespace-nowrap">
+                    <span>🛑</span> منشور سداسي
+                </button>
+                <button data-shape="tri" class="shape-btn px-2.5 py-1 rounded-xl border border-white/10 bg-slate-800/80 hover:bg-slate-700 text-xs font-bold flex items-center justify-center gap-1 transition-all whitespace-nowrap">
+                    <span>📐</span> منشور مثلث
+                </button>
+                <button data-shape="cube" class="shape-btn px-2.5 py-1 rounded-xl border border-white/10 bg-slate-800/80 hover:bg-slate-700 text-xs font-bold flex items-center justify-center gap-1 transition-all whitespace-nowrap">
+                    <span>🧊</span> مكعب
+                </button>
+                <button data-shape="pyramid" class="shape-btn px-2.5 py-1 rounded-xl border border-white/10 bg-slate-800/80 hover:bg-slate-700 text-xs font-bold flex items-center justify-center gap-1 transition-all whitespace-nowrap">
+                    <span>🔺</span> هرم
+                </button>
+            </div>
+
+            <button id="btn-mode-toggle" class="hidden sm:flex px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold items-center gap-1 transition-all shadow-md whitespace-nowrap">
+                <i class="fa-solid fa-plus-circle"></i>
+                <span id="mode-text">بناء</span>
+            </button>
+        </div>
+
+        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 px-1 justify-center" id="material-palette">
+            <label title="اختر أي لون مخصص" class="relative w-7 h-7 rounded-full cursor-pointer flex-shrink-0 border-2 border-white shadow-md overflow-hidden bg-gradient-to-tr from-red-500 via-green-500 to-blue-500 flex items-center justify-center">
+                <input type="color" id="custom-color-picker" value="#f59e0b" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                <i class="fa-solid fa-eye-dropper text-[10px] text-white drop-shadow"></i>
+            </label>
+            <div class="h-4 w-px bg-white/20"></div>
+        </div>
+    </div>
+
+    <!-- Inspector Card Popup -->
+    <div id="inspector-card" class="fixed top-16 left-1/2 -translate-x-1/2 z-40 p-4 rounded-2xl w-[90%] max-w-md hidden glass-panel border border-amber-500/40 text-right text-xs shadow-2xl">
+        <div class="flex items-center justify-between border-b border-amber-500/30 pb-2 mb-2">
+            <span class="font-extrabold text-amber-400 text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-ruler-combined"></i> قياس وتفاصيل القطعة المحددة
+            </span>
+            <button id="btn-close-inspector" class="text-gray-400 hover:text-white text-base">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-gray-200 font-bold">
+            <div class="bg-slate-800/80 p-2 rounded-lg border border-white/10">
+                <span class="text-amber-300 block text-[10px]">نوع الشكل:</span>
+                <span id="inspect-shape-name" class="text-sm">سداسي</span>
+            </div>
+            <div class="bg-slate-800/80 p-2 rounded-lg border border-white/10">
+                <span class="text-amber-300 block text-[10px]">اللون:</span>
+                <div class="flex items-center gap-2 mt-1">
+                    <span id="inspect-color-swatch" class="w-4 h-4 rounded border border-white/30"></span>
+                    <span id="inspect-color-code" class="text-xs font-mono">#f59e0b</span>
+                </div>
+            </div>
+            <div class="bg-slate-800/80 p-2 rounded-lg border border-white/10">
+                <span class="text-sky-300 block text-[10px]">الطول / الارتفاع:</span>
+                <span id="inspect-height-val" class="text-sm text-white">1.0</span>
+            </div>
+            <div class="bg-slate-800/80 p-2 rounded-lg border border-white/10">
+                <span class="text-sky-300 block text-[10px]">القطر / العرض:</span>
+                <span id="inspect-width-val" class="text-sm text-white">1.0</span>
+            </div>
+            <div class="bg-slate-800/80 p-2 rounded-lg border border-white/10">
+                <span class="text-purple-300 block text-[10px]">زاوية الانحناء:</span>
+                <span id="inspect-slant-val" class="text-sm text-white">0°</span>
+            </div>
+            <div class="bg-slate-800/80 p-2 rounded-lg border border-white/10">
+                <span class="text-emerald-300 block text-[10px]">الوضعية والتدوير:</span>
+                <span id="inspect-orient-val" class="text-sm text-white">عمودي (0°)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 0: SAVED WORLDS MANAGER -->
+    <div id="modal-welcome-worlds" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 pointer-events-auto">
+        <div class="glass-panel max-w-md w-full p-5 rounded-2xl relative shadow-2xl border border-amber-500/30 text-right">
+            <button id="btn-close-welcome-top" title="إغلاق" class="absolute top-3 left-3 text-gray-400 hover:text-white text-lg px-2 py-1 rounded-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="text-center mb-4">
+                <div class="w-14 h-14 bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-900 rounded-2xl flex items-center justify-center text-3xl font-black mx-auto shadow-lg mb-2">
+                    🐝
+                </div>
+                <h1 class="text-2xl font-black text-amber-400">عالم الأشكال ثلاثي الأبعاد</h1>
+                <p class="text-xs text-gray-300 mt-1">ابنِ الأشكال الهندسية وخلايا النحل مع تتبع وضع الجهاز وميزة البناء الذكي</p>
+            </div>
+
+            <div class="space-y-3">
+                <div class="bg-slate-800/80 p-3 rounded-xl border border-amber-500/20">
+                    <h3 class="font-bold text-amber-300 text-xs mb-1.5 flex items-center gap-1.5">
+                        <i class="fa-solid fa-plus"></i> إنشاء عالم جديد:
+                    </h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="input-new-world-name" placeholder="اسم العالم..." class="flex-1 bg-slate-900 border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-amber-400">
+                        <button id="btn-create-world" class="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black rounded-lg text-xs transition-all shadow">
+                            إنشاء
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-sky-300 text-xs mb-1.5 flex items-center gap-1.5">
+                        <i class="fa-solid fa-folder-open"></i> العوالم المحفوظة:
+                    </h3>
+                    <div id="worlds-list-container" class="space-y-2 max-h-36 overflow-y-auto pr-1 no-scrollbar">
+                        <!-- Dynamic World Items -->
+                    </div>
+                </div>
+            </div>
+
+            <button id="btn-enter-world-direct" class="w-full mt-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 font-extrabold rounded-xl text-white shadow-xl transition-all text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-play"></i> دخول اللعبة
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 1: COPY & PASTE TOOL -->
+    <div id="modal-copy-paste" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-sm w-full p-5 rounded-2xl relative text-right shadow-2xl">
+            <h2 class="text-base font-black text-purple-300 mb-3 flex items-center gap-2 border-b border-white/10 pb-2">
+                <i class="fa-solid fa-copy"></i> أدوات نسخ ولصق البناء
+            </h2>
+            
+            <div class="space-y-3 text-xs font-bold">
+                <button id="btn-copy-record" class="w-full p-3 bg-slate-800 hover:bg-slate-700 rounded-xl border border-purple-500/30 flex flex-col gap-1 text-right transition-all">
+                    <span class="text-purple-400 text-sm"><i class="fa-solid fa-circle-dot ml-1"></i> 1. نسخ الآتي</span>
+                    <span class="text-gray-300 font-normal text-[11px]">تسجيل كل ما سيتم بناؤه من الآن حتى تضغط على "تم"</span>
+                </button>
+
+                <button id="btn-copy-select" class="w-full p-3 bg-slate-800 hover:bg-slate-700 rounded-xl border border-sky-500/30 flex flex-col gap-1 text-right transition-all">
+                    <span class="text-sky-400 text-sm"><i class="fa-solid fa-object-group ml-1"></i> 2. نسخ بالتحديد</span>
+                    <span class="text-gray-300 font-normal text-[11px]">تحديد عدة قطع موجودة في العالم ثم الضغط على "تم"</span>
+                </button>
+
+                <button id="btn-copy-finish" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl font-black transition-all hidden">
+                    <i class="fa-solid fa-check ml-1"></i> تم الحفظ
+                </button>
+
+                <button id="btn-paste-mode" class="w-full p-3 bg-emerald-900/50 hover:bg-emerald-800/60 rounded-xl border border-emerald-500/40 flex flex-col gap-1 text-right transition-all hidden">
+                    <span class="text-emerald-300 text-sm"><i class="fa-solid fa-paste ml-1"></i> تفعيل وضع اللصق المباشر</span>
+                    <span class="text-gray-300 font-normal text-[11px]">انقر في العالم لصق النموذج</span>
+                </button>
+
+                <button id="btn-copy-to-library" class="w-full p-3 bg-pink-900/50 hover:bg-pink-800/60 rounded-xl border border-pink-500/40 flex flex-col gap-1 text-right transition-all hidden">
+                    <span class="text-pink-300 text-sm"><i class="fa-solid fa-box-archive ml-1"></i> حفظ البناء في المكتبة العامة</span>
+                    <span class="text-gray-300 font-normal text-[11px]">حفظ الهيكل لاستدعائه في جميع العوالم</span>
+                </button>
+            </div>
+
+            <button id="btn-copy-close" class="w-full mt-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-white font-bold text-xs">
+                إغلاق
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 4: MODELS & STRUCTURES LIBRARY -->
+    <div id="modal-library" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-md w-full p-5 rounded-2xl relative text-right shadow-2xl border border-pink-500/30">
+            <div class="flex items-center justify-between border-b border-pink-500/30 pb-3 mb-3">
+                <h2 class="text-base font-black text-pink-400 flex items-center gap-2">
+                    <i class="fa-solid fa-boxes-stacked"></i> مكتبة الهياكل والمجسمات
+                </h2>
+                <button id="btn-close-library" class="text-gray-400 hover:text-white text-base">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div id="library-save-box" class="bg-slate-800/80 p-3 rounded-xl border border-pink-500/30 mb-3 hidden">
+                <label class="block text-xs font-bold text-pink-300 mb-1.5 flex items-center gap-1">
+                    <i class="fa-solid fa-pen-to-square"></i> حفظ الهيكل الحالي في المكتبة العامة:
+                </label>
+                <div class="flex gap-2">
+                    <input type="text" id="input-lib-model-name" placeholder="اسم الهيكل (مثلاً: بيت، شجرة، قلعة...)" class="flex-1 bg-slate-900 border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-pink-400">
+                    <button id="btn-save-to-library" class="px-3 py-1.5 bg-pink-500 hover:bg-pink-400 active:scale-95 text-slate-950 font-black rounded-lg text-xs transition-all shadow">
+                        حفظ
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="font-bold text-sky-300 text-xs mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-bookmark"></i> الهياكل المحفوظة لاستدعائها في أي عالم:
+                </h3>
+                <div id="library-list-container" class="space-y-2 max-h-56 overflow-y-auto pr-1 no-scrollbar">
+                    <!-- Dynamic Library Items -->
+                </div>
+            </div>
+
+            <button id="btn-close-library-bottom" class="w-full mt-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-white font-bold text-xs">
+                إغلاق
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 2: DIMENSIONS & TRANSFORM PANEL -->
+    <div id="modal-transform" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-sm w-full p-5 rounded-2xl relative text-right shadow-2xl">
+            <h2 class="text-base font-black text-indigo-300 mb-3 flex items-center gap-2 border-b border-white/10 pb-2">
+                <i class="fa-solid fa-sliders"></i> التحكم بأبعاد وانحناء وتدوير القطعة
+            </h2>
+
+            <div class="space-y-3 text-xs font-bold">
+                <div>
+                    <label class="text-gray-300 mb-1 block">الوضعية:</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="btn-orient-vert" class="py-2 rounded-lg bg-indigo-600 text-white font-bold">عمودي</button>
+                        <button id="btn-orient-horiz" class="py-2 rounded-lg bg-slate-800 text-gray-300 font-bold">أفقي (ملامس للأرض)</button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-gray-300 mb-1">
+                        <span>الطول / الارتفاع:</span>
+                        <span id="val-height" class="text-amber-400">1.0</span>
+                    </div>
+                    <input type="range" id="slider-height" min="0.5" max="5.0" step="0.2" value="1.0" class="w-full">
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-gray-300 mb-1">
+                        <span>القطر / العرض:</span>
+                        <span id="val-width" class="text-amber-400">1.0</span>
+                    </div>
+                    <input type="range" id="slider-width" min="0.5" max="3.0" step="0.1" value="1.0" class="w-full">
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-gray-300 mb-1">
+                        <span>درجة الانحناء:</span>
+                        <span id="val-slant" class="text-amber-400">0°</span>
+                    </div>
+                    <input type="range" id="slider-slant" min="0" max="60" step="5" value="0" class="w-full">
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-gray-300 mb-1">
+                        <span>زاوية التدوير:</span>
+                        <span id="val-rotation" class="text-amber-400">0°</span>
+                    </div>
+                    <input type="range" id="slider-rotation" min="0" max="360" step="15" value="0" class="w-full">
+                </div>
+            </div>
+
+            <button id="btn-close-transform" class="w-full mt-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold text-xs shadow-lg">
+                تم وحفظ الأبعاد
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 3: HELP DIALOG -->
+    <div id="modal-help" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-sm w-full p-5 rounded-2xl relative text-right shadow-2xl space-y-3">
+            <h2 class="text-base font-black text-amber-400 border-b border-white/10 pb-2">
+                <i class="fa-solid fa-gamepad ml-1"></i> تعليمات اللعب والتحكم
+            </h2>
+            <div class="text-xs space-y-2 text-gray-200">
+                <p><span class="text-sky-300 font-bold">تتبع وضع الجهاز:</span> اللعبة تكتشف تلقائياً ما إذا كان جهازك بوضع عمودي أو أفقي وتضبط واجهة التحكم لتلائم شاشتك.</p>
+                <p><span class="text-amber-300 font-bold">أنواع وضع البناء:</span> يمكنك التبديل بين <b class="text-amber-300">"بناء ملاصق"</b> (حيث تتصل القطعة بالمجاور تلقائياً) و <b class="text-sky-300">"بناء حر"</b> (حيث توضع القطعة أينما نقرت، وإذا تقاطعت مع قطعة أخرى فإنها تصبح ملاصقة لها تلقائياً).</p>
+                <p><span class="text-sky-300 font-bold">تدوير القطع ثلاثية الأبعاد:</span> انقر على أي قطعة لإظهار زر التدوير الدائري أو استعمل لوحة التحكم العائمة.</p>
+            </div>
+            <button id="btn-close-help" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-white font-bold text-xs">
+                فهمت ذلك
+            </button>
+        </div>
+    </div>
+
+    <!-- WebGL Fallback Notification -->
+    <div id="webgl-error-banner" class="fixed inset-0 z-50 bg-slate-900 flex flex-col items-center justify-center p-6 text-center hidden">
+        <i class="fa-solid fa-triangle-exclamation text-amber-400 text-5xl mb-3"></i>
+        <h2 class="text-lg font-bold text-white mb-2">عذراً! المحرك ثلاثي الأبعاد غير مدعوم</h2>
+        <p class="text-xs text-gray-300 max-w-xs mb-4">يرجى تفعيل وتسريع WebGL في إعدادات متصفحك لتجربة اللعبة.</p>
+    </div>
+
+    <script>
+        let scene, camera, renderer, raycaster;
+        let groundPlaneMesh;
+        let blocksMap = new Map();
+        let cloudsGroup;
+
+        let playerPos = new THREE.Vector3(0, 2, 10);
+        let playerVel = new THREE.Vector3();
+        let cameraYaw = 0, cameraPitch = 0;
+        let isFlying = false;
+
+        let selectedShape = 'hex';
+        let selectedColor = '#f59e0b';
+        let buildMode = true;
+        let inspectMode = false;
+        let isRotateToolActive = false;
+        let selectedBlockForRotation = null;
+        let activeWorldId = 'default_world';
+        let worldsList = [];
+        let libraryModels = [];
+
+        // وضع البناء: 'snapped' (يلصق القطعة المجاورة دائماً من أحد الجوانب) أو 'free' (أينما ضغطت، وإذا تداخلت تلصق تلقائياً)
+        let placementMode = 'snapped'; 
+
+        let blockTransform = {
+            height: 1.0,
+            width: 1.0,
+            slant: 0,
+            rotation: 0,
+            orientation: 'vertical'
+        };
+
+        let copyState = {
+            mode: 'none',
+            recordedBlocks: [],
+            selectedSet: new Map(),
+            pivotPos: null
+        };
+
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let flyUp = false, flyDown = false;
+        let lookUp = false, lookDown = false, lookLeft = false, lookRight = false;
+
+        const centerPointer = new THREE.Vector2(0, 0);
+
+        const soundFx = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+            },
+            playPlaceSound() {
+                try {
+                    this.init();
+                    if (!this.ctx) return;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(340, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.08);
+                } catch(e) {}
+            },
+            playBreakSound() {
+                try {
+                    this.init();
+                    if (!this.ctx) return;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.1);
+                } catch(e) {}
+            }
+        };
+
+        function calculateTargetPositionAndRotation(hit, hitObject) {
+            let targetPos = new THREE.Vector3();
+            if (hitObject.userData.isGround) {
+                targetPos.x = Math.round(hit.point.x);
+                targetPos.y = (blockTransform.height || 1.0) / 2;
+                targetPos.z = Math.round(hit.point.z);
+            } else {
+                if (placementMode === 'snapped') {
+                    // وضع البناء الملاصق: يعتمد على الوجه المجاور لتلتصق القطعة بالجانب بدقة
+                    const normal = hit.face.normal.clone();
+                    normal.transformDirection(hitObject.matrixWorld);
+
+                    const hitWidth = hitObject.userData.transform?.width || 1.0;
+                    const hitHeight = hitObject.userData.transform?.height || 1.0;
+                    const curWidth = blockTransform.width || 1.0;
+                    const curHeight = blockTransform.height || 1.0;
+
+                    let distance = 1.0;
+                    if (Math.abs(normal.y) > 0.5) {
+                        distance = (hitHeight + curHeight) / 2;
+                    } else {
+                        distance = (hitWidth + curWidth) / 2;
+                    }
+
+                    targetPos.copy(hitObject.position).add(normal.multiplyScalar(distance));
+                } else {
+                    // وضع البناء الحر: يضع القطعة أينما تم الضغط مباشرة
+                    targetPos.copy(hit.point);
+                }
+
+                targetPos.x = Math.round(targetPos.x * 100) / 100;
+                targetPos.y = Math.round(targetPos.y * 100) / 100;
+                targetPos.z = Math.round(targetPos.z * 100) / 100;
+            }
+            return { pos: targetPos };
+        }
+
+        function createCustomBentGeometry(shapeType, transform) {
+            const w = transform.width || 1.0;
+            const h = transform.height || 1.0;
+            const slantAngle = transform.slant || 0;
+            const isHoriz = (transform.orientation === 'horizontal');
+            const segmentsY = (slantAngle !== 0) ? 16 : 1;
+
+            let geo;
+            if (shapeType === 'pyramid') {
+                geo = new THREE.ConeGeometry(0.707 * w, h, 4, segmentsY);
+            } else if (shapeType === 'tri') {
+                geo = new THREE.CylinderGeometry(0.6 * w, 0.6 * w, h, 3, segmentsY);
+            } else if (shapeType === 'hex') {
+                geo = new THREE.CylinderGeometry(0.57735 * w, 0.57735 * w, h, 6, segmentsY);
+            } else {
+                geo = new THREE.BoxGeometry(w, h, w, 1, segmentsY, 1);
+            }
+
+            if (isHoriz) {
+                geo.rotateZ(Math.PI / 2);
+            }
+
+            if (slantAngle !== 0) {
+                const pos = geo.attributes.position;
+                const radSlant = (slantAngle * Math.PI) / 180;
+                const len = isHoriz ? w : h;
+                const halfLen = len / 2;
+
+                for (let i = 0; i < pos.count; i++) {
+                    let mainVal = isHoriz ? pos.getX(i) : pos.getY(i);
+                    let crossVal = isHoriz ? pos.getY(i) : pos.getX(i);
+
+                    const t = (mainVal + halfLen) / (len || 1.0);
+                    const bendOffset = Math.sin(radSlant) * Math.pow(t, 1.8) * len;
+                    const dropOffset = (1 - Math.cos(radSlant)) * Math.pow(t, 2) * (len * 0.25);
+
+                    if (isHoriz) {
+                        pos.setY(i, crossVal + bendOffset);
+                        pos.setX(i, mainVal - dropOffset);
+                    } else {
+                        pos.setX(i, crossVal + bendOffset);
+                        pos.setY(i, mainVal - dropOffset);
+                    }
+                }
+                geo.computeVertexNormals();
+            }
+
+            return geo;
+        }
+
+        function initEngine() {
+            const container = document.getElementById('canvas-container');
+
+            if (typeof THREE === 'undefined') {
+                document.getElementById('webgl-error-banner').classList.remove('hidden');
+                return false;
+            }
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x38bdf8);
+            scene.fog = new THREE.FogExp2(0x38bdf8, 0.003);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.rotation.order = 'YXZ';
+            camera.position.copy(playerPos);
+
+            try {
+                renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                container.appendChild(renderer.domElement);
+            } catch (e) {
+                document.getElementById('webgl-error-banner').classList.remove('hidden');
+                return false;
+            }
+
+            raycaster = new THREE.Raycaster();
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+            scene.add(ambientLight);
+
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x38bdf8, 0.65);
+            hemiLight.position.set(0, 50, 0);
+            scene.add(hemiLight);
+
+            const sunLight = new THREE.DirectionalLight(0xfffbeb, 0.85);
+            sunLight.position.set(100, 150, 50);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 1024;
+            sunLight.shadow.mapSize.height = 1024;
+            sunLight.shadow.bias = -0.0005;
+            scene.add(sunLight);
+
+            const groundGeo = new THREE.PlaneGeometry(2000, 2000);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x15803d });
+            groundPlaneMesh = new THREE.Mesh(groundGeo, groundMat);
+            groundPlaneMesh.rotation.x = -Math.PI / 2;
+            groundPlaneMesh.userData = { isGround: true };
+            scene.add(groundPlaneMesh);
+
+            setupFloatingSkyClouds();
+
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('orientationchange', () => {
+                setTimeout(checkDeviceOrientation, 200);
+            });
+            checkDeviceOrientation();
+
+            return true;
+        }
+
+        function checkDeviceOrientation() {
+            const isLandscape = window.innerWidth > window.innerHeight;
+            const orientText = document.getElementById('orientation-text');
+            if (orientText) {
+                orientText.innerText = isLandscape ? 'أفقي' : 'عمودي';
+            }
+        }
+
+        function setupFloatingSkyClouds() {
+            cloudsGroup = new THREE.Group();
+            const cloudMat = new THREE.MeshLambertMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.85
+            });
+
+            for (let c = 0; c < 25; c++) {
+                const cloud = new THREE.Group();
+                const numSpheres = 4 + Math.floor(Math.random() * 4);
+
+                for (let i = 0; i < numSpheres; i++) {
+                    const radius = 5 + Math.random() * 6;
+                    const sphereGeo = new THREE.SphereGeometry(radius, 8, 8);
+                    const mesh = new THREE.Mesh(sphereGeo, cloudMat);
+                    mesh.position.set(
+                        (Math.random() - 0.5) * 18,
+                        (Math.random() - 0.5) * 5,
+                        (Math.random() - 0.5) * 14
+                    );
+                    cloud.add(mesh);
+                }
+
+                cloud.position.set(
+                    (Math.random() - 0.5) * 500,
+                    50 + Math.random() * 25,
+                    (Math.random() - 0.5) * 500
+                );
+                cloudsGroup.add(cloud);
+            }
+            scene.add(cloudsGroup);
+        }
+
+        function isOverlappingExisting(x, y, z, shapeType, transform) {
+            const tempGeo = createCustomBentGeometry(shapeType, transform);
+            const tempMesh = new THREE.Mesh(tempGeo);
+            tempMesh.position.set(x, y, z);
+            const rotDeg = transform.rotation || 0;
+            tempMesh.rotation.y = (rotDeg * Math.PI) / 180;
+            tempMesh.updateMatrixWorld(true);
+
+            const candidateBox = new THREE.Box3().setFromObject(tempMesh);
+            tempGeo.dispose();
+            candidateBox.expandByScalar(-0.04);
+
+            if (candidateBox.min.y < -0.01) {
+                return true;
+            }
+
+            const existingBox = new THREE.Box3();
+            for (const mesh of blocksMap.values()) {
+                existingBox.setFromObject(mesh);
+                existingBox.expandByScalar(-0.04);
+
+                if (candidateBox.intersectsBox(existingBox)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function resolveOverlapPosition(targetPos, shapeType, transform) {
+            // إذا كان وضع البناء ملاصقاً تماماً، أو إذا لم يكن هناك تداخل، نتحقق مباشرة
+            if (placementMode === 'snapped' || !isOverlappingExisting(targetPos.x, targetPos.y, targetPos.z, shapeType, transform)) {
+                return targetPos;
+            }
+
+            // في الوضع الحر: إذا كانت القطعة قريبة جداً من قطعة أخرى وتتداخل معها، يتم تحريكها لتكون ملاصقة من أحد الجوانب تلقائياً
+            const tempGeo = createCustomBentGeometry(shapeType, transform);
+            const tempMesh = new THREE.Mesh(tempGeo);
+            tempMesh.position.copy(targetPos);
+            tempMesh.rotation.y = ((transform.rotation || 0) * Math.PI) / 180;
+            tempMesh.updateMatrixWorld(true);
+
+            const candBox = new THREE.Box3().setFromObject(tempMesh);
+            tempGeo.dispose();
+            candBox.expandByScalar(-0.02);
+
+            let closestMesh = null;
+            let minDist = Infinity;
+
+            const existBox = new THREE.Box3();
+            for (const mesh of blocksMap.values()) {
+                existBox.setFromObject(mesh);
+                existBox.expandByScalar(-0.02);
+                if (candBox.intersectsBox(existBox)) {
+                    const dist = mesh.position.distanceTo(targetPos);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        closestMesh = mesh;
+                    }
+                }
+            }
+
+            if (!closestMesh) return targetPos;
+
+            const pTransform = closestMesh.userData.transform || {};
+            const parentWidth = pTransform.width || 1.0;
+            const parentHeight = pTransform.height || 1.0;
+            const curWidth = transform.width || 1.0;
+            const curHeight = transform.height || 1.0;
+
+            const dir = targetPos.clone().sub(closestMesh.position);
+            if (dir.lengthSq() < 0.001) dir.set(0, 1, 0);
+
+            const distY = (parentHeight + curHeight) / 2;
+            const distX = (parentWidth + curWidth) / 2;
+            const distZ = (parentWidth + curWidth) / 2;
+
+            const possibleOffsets = [
+                new THREE.Vector3(0, distY, 0),
+                new THREE.Vector3(distX, 0, 0),
+                new THREE.Vector3(-distX, 0, 0),
+                new THREE.Vector3(0, 0, distZ),
+                new THREE.Vector3(0, 0, -distZ),
+                new THREE.Vector3(distX * 0.866, 0, distZ * 0.5),
+                new THREE.Vector3(distX * 0.866, 0, -distZ * 0.5),
+                new THREE.Vector3(-distX * 0.866, 0, distZ * 0.5),
+                new THREE.Vector3(-distX * 0.866, 0, -distZ * 0.5)
+            ];
+
+            possibleOffsets.sort((a, b) => {
+                const dotA = a.clone().normalize().dot(dir.clone().normalize());
+                const dotB = b.clone().normalize().dot(dir.clone().normalize());
+                return dotB - dotA;
+            });
+
+            for (const offset of possibleOffsets) {
+                const testPos = closestMesh.position.clone().add(offset);
+                testPos.x = Math.round(testPos.x * 100) / 100;
+                testPos.y = Math.round(testPos.y * 100) / 100;
+                testPos.z = Math.round(testPos.z * 100) / 100;
+
+                if (!isOverlappingExisting(testPos.x, testPos.y, testPos.z, shapeType, transform)) {
+                    return testPos;
+                }
+            }
+
+            return targetPos;
+        }
+
+        function placeBlockMesh(x, y, z, shapeType, colorHex, transform, triggerSave = true) {
+            const resolvedPos = resolveOverlapPosition(new THREE.Vector3(x, y, z), shapeType, transform);
+            x = resolvedPos.x;
+            y = resolvedPos.y;
+            z = resolvedPos.z;
+
+            const key = `${x.toFixed(2)}_${y.toFixed(2)}_${z.toFixed(2)}`;
+            if (blocksMap.has(key)) {
+                showToast('يوجد قطعة في هذا المكان بالفعل!', 'fa-hand');
+                return false;
+            }
+
+            if (isOverlappingExisting(x, y, z, shapeType, transform)) {
+                showToast('لا يمكن البناء هنا: تتداخل مع قطعة أخرى!', 'fa-triangle-exclamation');
+                return false;
+            }
+
+            const geo = createCustomBentGeometry(shapeType, transform);
+            const mat = new THREE.MeshLambertMaterial({ color: colorHex });
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+
+            const rotDeg = transform.rotation || 0;
+            mesh.rotation.y = (rotDeg * Math.PI) / 180;
+
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            mesh.userData = {
+                key, x, y, z, shapeType, colorHex,
+                transform: { ...transform }
+            };
+
+            scene.add(mesh);
+            blocksMap.set(key, mesh);
+
+            soundFx.playPlaceSound();
+
+            if (copyState.mode === 'recording') {
+                if (!copyState.pivotPos) copyState.pivotPos = new THREE.Vector3(x, y, z);
+                copyState.recordedBlocks.push({
+                    dx: x - copyState.pivotPos.x,
+                    dy: y - copyState.pivotPos.y,
+                    dz: z - copyState.pivotPos.z,
+                    shapeType, colorHex, transform: { ...transform }
+                });
+            }
+
+            updateBlockCountHUD();
+            if (triggerSave) saveWorldLocally();
+            return true;
+        }
+
+        function removeBlockMesh(key) {
+            const mesh = blocksMap.get(key);
+            if (!mesh) return;
+
+            scene.remove(mesh);
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) mesh.material.dispose();
+            blocksMap.delete(key);
+
+            if (selectedBlockForRotation === mesh) {
+                selectedBlockForRotation = null;
+            }
+
+            soundFx.playBreakSound();
+            updateBlockCountHUD();
+            saveWorldLocally();
+        }
+
+        function performRaycastAction() {
+            if (!camera || !raycaster) return;
+            raycaster.setFromCamera(centerPointer, camera);
+            const targets = [...Array.from(blocksMap.values()), groundPlaneMesh];
+            const intersects = raycaster.intersectObjects(targets);
+
+            if (intersects.length > 0) {
+                const hit = intersects[0];
+                const hitObject = hit.object;
+
+                if (!hitObject.userData.isGround) {
+                    selectedBlockForRotation = hitObject;
+                } else {
+                    selectedBlockForRotation = null;
+                }
+
+                if (inspectMode) {
+                    if (!hitObject.userData.isGround) {
+                        showInspectorCard(hitObject.userData);
+                    } else {
+                        showToast('هذه هي الأرضية الرئيسية للمبنى', 'fa-info-circle');
+                    }
+                    return;
+                }
+
+                if (copyState.mode === 'selecting') {
+                    if (!hitObject.userData.isGround) {
+                        const key = hitObject.userData.key;
+                        if (copyState.selectedSet.has(key)) {
+                            copyState.selectedSet.delete(key);
+                            hitObject.material.emissive.setHex(0x000000);
+                        } else {
+                            copyState.selectedSet.set(key, hitObject);
+                            hitObject.material.emissive.setHex(0x38bdf8);
+                        }
+                        soundFx.playPlaceSound();
+                        showToast(`تم تحديد ${copyState.selectedSet.size} قطعة`);
+                    }
+                    return;
+                }
+
+                const targetTransformResult = calculateTargetPositionAndRotation(hit, hitObject);
+                const targetPos = targetTransformResult.pos;
+
+                if (copyState.mode === 'pasting') {
+                    copyState.recordedBlocks.forEach(b => {
+                        placeBlockMesh(
+                            targetPos.x + b.dx,
+                            targetPos.y + b.dy,
+                            targetPos.z + b.dz,
+                            b.shapeType,
+                            b.colorHex,
+                            b.transform,
+                            false
+                        );
+                    });
+                    showToast('تم لصق النموذج المنسوخ بنجاح!');
+                    return;
+                }
+
+                if (buildMode) {
+                    let placementTransform = { ...blockTransform };
+                    if (!hitObject.userData.isGround && placementMode === 'snapped') {
+                        const parentRotation = (hitObject.userData.transform && hitObject.userData.transform.rotation !== undefined)
+                            ? hitObject.userData.transform.rotation
+                            : Math.round(THREE.MathUtils.radToDeg(hitObject.rotation.y));
+                        placementTransform.rotation = parentRotation;
+                    }
+                    placeBlockMesh(targetPos.x, targetPos.y, targetPos.z, selectedShape, selectedColor, placementTransform, true);
+                } else if (!hitObject.userData.isGround) {
+                    removeBlockMesh(hitObject.userData.key);
+                }
+            } else {
+                selectedBlockForRotation = null;
+            }
+        }
+
+        function loadWorldsRegistry() {
+            try {
+                const raw = localStorage.getItem('3d_game_worlds_list');
+                if (raw) {
+                    worldsList = JSON.parse(raw);
+                } else {
+                    worldsList = [{ id: 'default_world', name: 'العالم الافتراضي', createdAt: Date.now() }];
+                    localStorage.setItem('3d_game_worlds_list', JSON.stringify(worldsList));
+                }
+            } catch (e) {
+                worldsList = [{ id: 'default_world', name: 'العالم الافتراضي', createdAt: Date.now() }];
+            }
+            if (!activeWorldId) activeWorldId = 'default_world';
+            refreshWorldsListUI();
+        }
+
+        function refreshWorldsListUI() {
+            const container = document.getElementById('worlds-list-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            worldsList.forEach(w => {
+                const div = document.createElement('div');
+                div.className = `p-2 rounded-xl border flex items-center justify-between text-xs transition-all ${w.id === activeWorldId ? 'bg-amber-500/20 border-amber-400' : 'bg-slate-900/60 border-white/10 hover:border-white/30'}`;
+
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-cube text-amber-400"></i>
+                        <span class="font-bold text-white">${w.name}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button class="btn-select-w px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all" data-id="${w.id}">دخول</button>
+                        ${w.id !== 'default_world' ? `<button class="btn-delete-w px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg" data-id="${w.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    </div>
+                `;
+
+                div.querySelector('.btn-select-w').addEventListener('click', () => switchWorld(w.id));
+                const delBtn = div.querySelector('.btn-delete-w');
+                if (delBtn) delBtn.addEventListener('click', () => deleteWorld(w.id));
+
+                container.appendChild(div);
+            });
+        }
+
+        function createNewWorld(name) {
+            const id = 'world_' + Date.now();
+            worldsList.push({ id, name, createdAt: Date.now() });
+            localStorage.setItem('3d_game_worlds_list', JSON.stringify(worldsList));
+            switchWorld(id);
+        }
+
+        function switchWorld(id) {
+            activeWorldId = id;
+            const worldObj = worldsList.find(w => w.id === id);
+            const label = document.getElementById('active-world-label');
+            if (label) label.innerText = worldObj ? worldObj.name : 'العالم';
+
+            blocksMap.forEach(mesh => scene.remove(mesh));
+            blocksMap.clear();
+
+            try {
+                const raw = localStorage.getItem(`3d_world_data_${id}`);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    data.forEach(b => placeBlockMesh(b.x, b.y, b.z, b.s, b.c, b.t, false));
+                }
+            } catch (e) {}
+
+            closeWelcomeModal();
+            showToast(`أنت الآن في: ${worldObj ? worldObj.name : 'العالم'}`);
+        }
+
+        function closeWelcomeModal() {
+            const welcomeModal = document.getElementById('modal-welcome-worlds');
+            if (welcomeModal) {
+                welcomeModal.classList.add('hidden');
+                welcomeModal.style.display = 'none';
+            }
+        }
+
+        function deleteWorld(id) {
+            worldsList = worldsList.filter(w => w.id !== id);
+            localStorage.setItem('3d_game_worlds_list', JSON.stringify(worldsList));
+            localStorage.removeItem(`3d_world_data_${id}`);
+            if (activeWorldId === id) switchWorld('default_world');
+            else refreshWorldsListUI();
+        }
+
+        function saveWorldLocally() {
+            try {
+                const worldData = [];
+                blocksMap.forEach(mesh => {
+                    worldData.push({
+                        x: mesh.userData.x,
+                        y: mesh.userData.y,
+                        z: mesh.userData.z,
+                        s: mesh.userData.shapeType,
+                        c: mesh.userData.colorHex || '#f59e0b',
+                        t: mesh.userData.transform
+                    });
+                });
+                localStorage.setItem(`3d_world_data_${activeWorldId}`, JSON.stringify(worldData));
+            } catch (e) {}
+        }
+
+        function showToast(msg, iconClass = 'fa-circle-info') {
+            const toast = document.getElementById('toast');
+            if (!toast) return;
+            document.getElementById('toast-msg').innerText = msg;
+            document.getElementById('toast-icon').className = `fa-solid ${iconClass}`;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2500);
+        }
+
+        function showInspectorCard(data) {
+            const card = document.getElementById('inspector-card');
+            const shapeNames = { hex: 'منشور سداسي (خلية)', tri: 'منشور مثلث', pyramid: 'هرم', cube: 'مكعب' };
+
+            document.getElementById('inspect-shape-name').innerText = shapeNames[data.shapeType] || data.shapeType;
+            document.getElementById('inspect-color-swatch').style.backgroundColor = data.colorHex || '#f59e0b';
+            document.getElementById('inspect-color-code').innerText = data.colorHex || '#f59e0b';
+
+            const t = data.transform || {};
+            document.getElementById('inspect-height-val').innerText = (t.height || 1.0).toFixed(1);
+            document.getElementById('inspect-width-val').innerText = (t.width || 1.0).toFixed(1);
+            document.getElementById('inspect-slant-val').innerText = `${t.slant || 0}°`;
+            document.getElementById('inspect-orient-val').innerText = `${t.orientation === 'horizontal' ? 'أفقي' : 'عمودي'} (${t.rotation || 0}°)`;
+
+            card.classList.remove('hidden');
+            soundFx.playPlaceSound();
+        }
+
+        function updateBlockCountHUD() {
+            const el = document.getElementById('block-count');
+            if (el) el.innerText = blocksMap.size;
+        }
+
+        function loadLibraryRegistry() {
+            try {
+                const raw = localStorage.getItem('3d_game_library_models');
+                if (raw) libraryModels = JSON.parse(raw);
+                else libraryModels = [];
+            } catch (e) { libraryModels = []; }
+            refreshLibraryListUI();
+        }
+
+        function saveLibraryRegistry() {
+            try {
+                localStorage.setItem('3d_game_library_models', JSON.stringify(libraryModels));
+            } catch (e) {}
+        }
+
+        function refreshLibraryListUI() {
+            const container = document.getElementById('library-list-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (libraryModels.length === 0) {
+                container.innerHTML = `
+                    <div class="p-4 text-center text-gray-400 text-xs bg-slate-900/40 rounded-xl border border-white/5">
+                        <i class="fa-solid fa-box-open text-2xl text-gray-500 mb-1 block"></i>
+                        لا توجد هياكل محفوظة بعد.<br>انسخ أو سجّل أي بناء لتتمكن من حفظه في المكتبة.
+                    </div>
+                `;
+                return;
+            }
+
+            libraryModels.forEach(model => {
+                const div = document.createElement('div');
+                div.className = 'p-2.5 rounded-xl bg-slate-900/70 border border-white/10 hover:border-pink-500/40 flex items-center justify-between text-xs transition-all';
+
+                div.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="font-bold text-pink-300 text-xs flex items-center gap-1.5">
+                            <i class="fa-solid fa-cube"></i> ${model.name}
+                        </span>
+                        <span class="text-[10px] text-gray-400 font-mono mt-0.5">
+                            ${model.blocksCount} قطعة • ${new Date(model.createdAt).toLocaleDateString('ar-EG')}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button class="btn-paste-lib px-3 py-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold rounded-lg transition-all flex items-center gap-1 text-[11px]" data-id="${model.id}">
+                            <i class="fa-solid fa-paste"></i> استدعاء ولصق
+                        </button>
+                        <button class="btn-delete-lib px-2 py-1 bg-rose-600/80 hover:bg-rose-500 text-white rounded-lg transition-all" data-id="${model.id}">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+
+                div.querySelector('.btn-paste-lib').addEventListener('click', () => useLibraryModelForPasting(model.id));
+                div.querySelector('.btn-delete-lib').addEventListener('click', () => deleteLibraryModel(model.id));
+
+                container.appendChild(div);
+            });
+        }
+
+        function saveCurrentClipboardToLibrary(name) {
+            if (!copyState.recordedBlocks || copyState.recordedBlocks.length === 0) {
+                showToast('لا يوجد بناء منسوخ حالياً لحفظه!');
+                return;
+            }
+
+            const modelName = name.trim() || `هيكل ${libraryModels.length + 1}`;
+            const modelObj = {
+                id: 'lib_' + Date.now(),
+                name: modelName,
+                blocksCount: copyState.recordedBlocks.length,
+                blocks: copyState.recordedBlocks,
+                createdAt: Date.now()
+            };
+
+            libraryModels.push(modelObj);
+            saveLibraryRegistry();
+            refreshLibraryListUI();
+            
+            document.getElementById('input-lib-model-name').value = '';
+            showToast(`تم حفظ "${modelName}" في المكتبة العامة!`);
+        }
+
+        function useLibraryModelForPasting(id) {
+            const model = libraryModels.find(m => m.id === id);
+            if (!model) return;
+
+            copyState.recordedBlocks = model.blocks;
+            copyState.mode = 'pasting';
+
+            document.getElementById('modal-library').classList.add('hidden');
+            showToast(`جاهز لصق "${model.name}"! انقر في المكان المناسب بالعالم 🎯`);
+        }
+
+        function deleteLibraryModel(id) {
+            libraryModels = libraryModels.filter(m => m.id !== id);
+            saveLibraryRegistry();
+            refreshLibraryListUI();
+            showToast('تم حذف الهيكل من المكتبة');
+        }
+
+        function setupUI() {
+            const colors = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#ffffff', '#1e293b'];
+            const paletteContainer = document.getElementById('material-palette');
+
+            colors.forEach(col => {
+                const btn = document.createElement('button');
+                btn.className = `w-6 h-6 rounded-full border-2 border-white/40 flex-shrink-0 transition-all ${col === selectedColor ? 'active-color' : ''}`;
+                btn.style.backgroundColor = col;
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#material-palette button').forEach(b => b.classList.remove('active-color'));
+                    btn.classList.add('active-color');
+                    selectedColor = col;
+                    document.getElementById('custom-color-picker').value = col;
+                });
+                paletteContainer.appendChild(btn);
+            });
+
+            document.getElementById('custom-color-picker').addEventListener('input', (e) => {
+                selectedColor = e.target.value;
+            });
+
+            document.getElementById('btn-zoom-in').addEventListener('click', () => {
+                if (!camera) return;
+                camera.fov = Math.max(30, camera.fov - 5);
+                camera.updateProjectionMatrix();
+            });
+            document.getElementById('btn-zoom-out').addEventListener('click', () => {
+                if (!camera) return;
+                camera.fov = Math.min(95, camera.fov + 5);
+                camera.updateProjectionMatrix();
+            });
+
+            document.querySelectorAll('.shape-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active-shape'));
+                    btn.classList.add('active-shape');
+                    selectedShape = btn.dataset.shape;
+                });
+            });
+
+            // زر تبديل نوع البناء (ملامس أو حر)
+            const btnBuildPlacementMode = document.getElementById('btn-build-placement-mode');
+            const placementModeText = document.getElementById('placement-mode-text');
+            btnBuildPlacementMode.addEventListener('click', () => {
+                if (placementMode === 'snapped') {
+                    placementMode = 'free';
+                    placementModeText.innerText = 'بناء حر (ذكي)';
+                    btnBuildPlacementMode.className = 'px-2 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all';
+                    showToast('تم تفعيل وضع البناء الحر (يتصل تلقائياً عند التداخل)');
+                } else {
+                    placementMode = 'snapped';
+                    placementModeText.innerText = 'بناء ملاصق';
+                    btnBuildPlacementMode.className = 'px-2 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all';
+                    showToast('تم تفعيل وضع البناء الملاصق بالجانب');
+                }
+            });
+
+            document.getElementById('btn-fly-toggle').addEventListener('click', () => {
+                isFlying = !isFlying;
+                const statusText = document.getElementById('fly-status-text');
+                const flyControls = document.getElementById('fly-controls');
+
+                if (isFlying) {
+                    statusText.innerText = 'طيران';
+                    flyControls.classList.remove('hidden');
+                    playerVel.y = 0;
+                    showToast('تم تفعيل وضع الطيران 🚀');
+                } else {
+                    statusText.innerText = 'مشياً';
+                    flyControls.classList.add('hidden');
+                    flyUp = false;
+                    flyDown = false;
+                    playerVel.y = 0;
+                    showToast('تم إلغاء الطيران - العودة للجاذبية');
+                }
+            });
+
+            const bindMove = (id, setter) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+
+                const onPress = (e) => {
+                    if (e.cancelable) e.preventDefault();
+                    try { if (btn.setPointerCapture) btn.setPointerCapture(e.pointerId); } catch(err){}
+                    setter(true);
+                };
+
+                const onRelease = (e) => {
+                    if (e.cancelable) e.preventDefault();
+                    try { if (btn.releasePointerCapture) btn.releasePointerCapture(e.pointerId); } catch(err){}
+                    setter(false);
+                };
+
+                btn.addEventListener('pointerdown', onPress);
+                btn.addEventListener('pointerup', onRelease);
+                btn.addEventListener('pointercancel', onRelease);
+                btn.addEventListener('pointerleave', onRelease);
+            };
+
+            bindMove('btn-move-fwd', (val) => moveForward = val);
+            bindMove('btn-move-bwd', (val) => moveBackward = val);
+            bindMove('btn-move-left', (val) => moveLeft = val);
+            bindMove('btn-move-right', (val) => moveRight = val);
+
+            bindMove('btn-look-up', (val) => lookUp = val);
+            bindMove('btn-look-down', (val) => lookDown = val);
+            bindMove('btn-look-left', (val) => lookLeft = val);
+            bindMove('btn-look-right', (val) => lookRight = val);
+
+            bindMove('btn-fly-up', (val) => flyUp = val);
+            bindMove('btn-fly-down', (val) => flyDown = val);
+
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'KeyW') moveForward = true;
+                if (e.code === 'KeyS') moveBackward = true;
+                if (e.code === 'KeyA') moveLeft = true;
+                if (e.code === 'KeyD') moveRight = true;
+
+                if (e.code === 'ArrowUp') lookUp = true;
+                if (e.code === 'ArrowDown') lookDown = true;
+                if (e.code === 'ArrowLeft') lookLeft = true;
+                if (e.code === 'ArrowRight') lookRight = true;
+
+                if (e.code === 'Space') {
+                    if (isFlying) flyUp = true;
+                    else if (playerPos.y <= 1.8) playerVel.y = 7;
+                }
+                if (e.code === 'ShiftLeft' && isFlying) flyDown = true;
+                if (e.code === 'KeyF') document.getElementById('btn-fly-toggle').click();
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.code === 'KeyW') moveForward = false;
+                if (e.code === 'KeyS') moveBackward = false;
+                if (e.code === 'KeyA') moveLeft = false;
+                if (e.code === 'KeyD') moveRight = false;
+
+                if (e.code === 'ArrowUp') lookUp = false;
+                if (e.code === 'ArrowDown') lookDown = false;
+                if (e.code === 'ArrowLeft') lookLeft = false;
+                if (e.code === 'ArrowRight') lookRight = false;
+
+                if (e.code === 'Space') flyUp = false;
+                if (e.code === 'ShiftLeft') flyDown = false;
+            });
+
+            let touchStartX = 0, touchStartY = 0;
+            let pinchStartDist = 0;
+            const touchLookZone = document.getElementById('touch-look-zone');
+
+            touchLookZone.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    pinchStartDist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                }
+            }, { passive: true });
+
+            touchLookZone.addEventListener('touchmove', (e) => {
+                if (!camera) return;
+                if (e.touches.length === 1) {
+                    const deltaX = e.touches[0].clientX - touchStartX;
+                    const deltaY = e.touches[0].clientY - touchStartY;
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+
+                    cameraYaw -= deltaX * 0.004;
+                    cameraPitch -= deltaY * 0.004;
+                    cameraPitch = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, cameraPitch));
+                } else if (e.touches.length === 2) {
+                    const dist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    const diff = pinchStartDist - dist;
+                    pinchStartDist = dist;
+
+                    camera.fov = Math.max(30, Math.min(95, camera.fov + diff * 0.15));
+                    camera.updateProjectionMatrix();
+                }
+            }, { passive: true });
+
+            touchLookZone.addEventListener('click', () => {
+                performRaycastAction();
+            });
+
+            document.getElementById('btn-mobile-action').addEventListener('click', () => {
+                performRaycastAction();
+            });
+
+            document.getElementById('btn-mobile-mode').addEventListener('click', () => {
+                buildMode = !buildMode;
+                const modeText = document.getElementById('mode-text');
+                const modeBtn = document.getElementById('btn-mobile-mode');
+                if (buildMode) {
+                    if (modeText) modeText.innerText = 'بناء';
+                    modeBtn.innerHTML = '<i class="fa-solid fa-hammer"></i>';
+                    showToast('وضع البناء مفعّل');
+                } else {
+                    if (modeText) modeText.innerText = 'تدمير';
+                    modeBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                    showToast('وضع التدمير مفعّل');
+                }
+            });
+
+            document.getElementById('btn-mobile-jump').addEventListener('click', () => {
+                if (isFlying) {
+                    playerPos.y += 1.5;
+                } else if (playerPos.y <= 1.8) {
+                    playerVel.y = 7;
+                }
+            });
+
+            const btnEnter = document.getElementById('btn-enter-world-direct');
+            const handleEnterGame = (e) => {
+                if (e) e.preventDefault();
+                switchWorld(activeWorldId || 'default_world');
+                closeWelcomeModal();
+                showToast('مرحباً بك! تتبع وضع الجهاز مفعل والتصاق القطع يعمل بسلاسة 🎯');
+            };
+
+            btnEnter.addEventListener('click', handleEnterGame);
+            btnEnter.addEventListener('touchend', handleEnterGame);
+
+            const btnCloseWelcome = document.getElementById('btn-close-welcome-top');
+            if (btnCloseWelcome) {
+                btnCloseWelcome.addEventListener('click', closeWelcomeModal);
+                btnCloseWelcome.addEventListener('touchend', closeWelcomeModal);
+            }
+
+            document.getElementById('btn-open-worlds').addEventListener('click', () => {
+                refreshWorldsListUI();
+                const modal = document.getElementById('modal-welcome-worlds');
+                modal.classList.remove('hidden');
+                modal.style.display = 'flex';
+            });
+
+            document.getElementById('btn-create-world').addEventListener('click', () => {
+                const input = document.getElementById('input-new-world-name');
+                const name = input.value.trim() || `عالم ${worldsList.length + 1}`;
+                createNewWorld(name);
+                input.value = '';
+            });
+
+            const circleRotateBtn = document.getElementById('block-rotate-circle-btn');
+
+            function rotateSelectedBlockBy(angleStep) {
+                if (!selectedBlockForRotation) return;
+                const mesh = selectedBlockForRotation;
+                
+                const currentRad = mesh.rotation.y;
+                const newRad = currentRad + (angleStep * Math.PI / 180);
+
+                const prevRad = mesh.rotation.y;
+                mesh.rotation.y = newRad;
+                mesh.updateMatrixWorld(true);
+
+                const rotBox = new THREE.Box3().setFromObject(mesh).expandByScalar(-0.04);
+                let collides = false;
+                const otherBox = new THREE.Box3();
+
+                for (const otherMesh of blocksMap.values()) {
+                    if (otherMesh === mesh) continue;
+                    otherBox.setFromObject(otherMesh).expandByScalar(-0.04);
+                    if (rotBox.intersectsBox(otherBox)) {
+                        collides = true;
+                        break;
+                    }
+                }
+
+                if (collides) {
+                    mesh.rotation.y = prevRad;
+                    showToast('تعذر التدوير: تتداخل مع قطعة أخرى!', 'fa-triangle-exclamation');
+                    return;
+                }
+
+                const deg = Math.round(THREE.MathUtils.radToDeg(newRad)) % 360;
+                const finalDeg = deg < 0 ? deg + 360 : deg;
+
+                if (!mesh.userData.transform) mesh.userData.transform = {};
+                mesh.userData.transform.rotation = finalDeg;
+
+                soundFx.playPlaceSound();
+                saveWorldLocally();
+            }
+
+            let spinTimer = null;
+
+            circleRotateBtn.addEventListener('click', () => {
+                rotateSelectedBlockBy(15);
+                showToast('تم تدوير القطعة 15 درجة');
+            });
+
+            const startSpinning = () => {
+                if (!spinTimer) {
+                    spinTimer = setInterval(() => {
+                        rotateSelectedBlockBy(3);
+                    }, 50);
+                }
+            };
+
+            const stopSpinning = () => {
+                if (spinTimer) {
+                    clearInterval(spinTimer);
+                    spinTimer = null;
+                }
+            };
+
+            circleRotateBtn.addEventListener('mousedown', startSpinning);
+            circleRotateBtn.addEventListener('mouseup', stopSpinning);
+            circleRotateBtn.addEventListener('mouseleave', stopSpinning);
+
+            circleRotateBtn.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+                rotateSelectedBlockBy(15);
+                startSpinning();
+            }, { passive: false });
+
+            circleRotateBtn.addEventListener('touchend', stopSpinning);
+
+            document.getElementById('btn-rotate-tool').addEventListener('click', () => {
+                isRotateToolActive = !isRotateToolActive;
+                const btn = document.getElementById('btn-rotate-tool');
+                if (isRotateToolActive) {
+                    btn.className = 'p-1.5 bg-amber-500 text-slate-950 font-black rounded-xl transition-all flex items-center gap-1 animate-pulse';
+                    showToast('انقر على أي قطعة لإظهار زر التدوير العائم 🔄');
+                } else {
+                    btn.className = 'p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl transition-all flex items-center gap-1 font-bold';
+                    showToast('تم إغلاق وضع التدوير');
+                }
+            });
+
+            document.getElementById('btn-inspect-toggle').addEventListener('click', () => {
+                inspectMode = !inspectMode;
+                const btn = document.getElementById('btn-inspect-toggle');
+                if (inspectMode) {
+                    btn.className = 'p-1.5 bg-amber-500 text-slate-950 font-black rounded-xl transition-all flex items-center gap-1 animate-pulse';
+                    showToast('انقر على أي قطعة لفحص أبعادها 📐');
+                } else {
+                    btn.className = 'p-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl transition-all flex items-center gap-1 font-bold';
+                    document.getElementById('inspector-card').classList.add('hidden');
+                    showToast('تم إلغاء وضع الفحص');
+                }
+            });
+
+            document.getElementById('btn-close-inspector').addEventListener('click', () => {
+                document.getElementById('inspector-card').classList.add('hidden');
+            });
+
+            document.getElementById('btn-honeycomb-preset').addEventListener('click', () => {
+                selectedShape = 'hex';
+                selectedColor = '#f59e0b';
+                document.querySelectorAll('.shape-btn').forEach(b => {
+                    b.classList.toggle('active-shape', b.dataset.shape === 'hex');
+                });
+                showToast('وضع بناء خلية النحل السريع! 🐝');
+            });
+
+            document.getElementById('btn-copy-menu').addEventListener('click', () => {
+                document.getElementById('modal-copy-paste').classList.remove('hidden');
+            });
+
+            document.getElementById('btn-copy-close').addEventListener('click', () => {
+                document.getElementById('modal-copy-paste').classList.add('hidden');
+            });
+
+            document.getElementById('btn-copy-record').addEventListener('click', () => {
+                copyState.mode = 'recording';
+                copyState.recordedBlocks = [];
+                copyState.pivotPos = null;
+                document.getElementById('btn-copy-finish').classList.remove('hidden');
+                document.getElementById('modal-copy-paste').classList.add('hidden');
+                showToast('تسجيل البناء... أضف قطعك ثم اضغط تم الحفظ');
+            });
+
+            document.getElementById('btn-copy-select').addEventListener('click', () => {
+                copyState.mode = 'selecting';
+                copyState.selectedSet.clear();
+                document.getElementById('btn-copy-finish').classList.remove('hidden');
+                document.getElementById('modal-copy-paste').classList.add('hidden');
+                showToast('حدد القطع في العالم ثم اضغط تم الحفظ');
+            });
+
+            document.getElementById('btn-copy-finish').addEventListener('click', () => {
+                if (copyState.mode === 'selecting' && copyState.selectedSet.size > 0) {
+                    copyState.recordedBlocks = [];
+                    let firstMesh = Array.from(copyState.selectedSet.values())[0];
+                    let pivot = firstMesh.position;
+
+                    copyState.selectedSet.forEach(mesh => {
+                        copyState.recordedBlocks.push({
+                            dx: mesh.position.x - pivot.x,
+                            dy: mesh.position.y - pivot.y,
+                            dz: mesh.position.z - pivot.z,
+                            shapeType: mesh.userData.shapeType,
+                            colorHex: mesh.userData.colorHex,
+                            transform: mesh.userData.transform
+                        });
+                        mesh.material.emissive.setHex(0x000000);
+                    });
+                }
+
+                copyState.mode = 'pasting';
+                document.getElementById('btn-paste-mode').classList.remove('hidden');
+                document.getElementById('btn-copy-to-library').classList.remove('hidden');
+                document.getElementById('btn-copy-finish').classList.add('hidden');
+                showToast('تم الحفظ! يمكنك الآن لصق النموذج أو حفظه في المكتبة العامة');
+            });
+
+            document.getElementById('btn-open-library').addEventListener('click', () => {
+                refreshLibraryListUI();
+                const saveBox = document.getElementById('library-save-box');
+                if (copyState.recordedBlocks && copyState.recordedBlocks.length > 0) {
+                    saveBox.classList.remove('hidden');
+                } else {
+                    saveBox.classList.add('hidden');
+                }
+                document.getElementById('modal-library').classList.remove('hidden');
+            });
+
+            document.getElementById('btn-copy-to-library').addEventListener('click', () => {
+                document.getElementById('modal-copy-paste').classList.add('hidden');
+                refreshLibraryListUI();
+                document.getElementById('library-save-box').classList.remove('hidden');
+                document.getElementById('modal-library').classList.remove('hidden');
+            });
+
+            document.getElementById('btn-save-to-library').addEventListener('click', () => {
+                const name = document.getElementById('input-lib-model-name').value;
+                saveCurrentClipboardToLibrary(name);
+            });
+
+            document.getElementById('btn-close-library').addEventListener('click', () => {
+                document.getElementById('modal-library').classList.add('hidden');
+            });
+
+            document.getElementById('btn-close-library-bottom').addEventListener('click', () => {
+                document.getElementById('modal-library').classList.add('hidden');
+            });
+
+            document.getElementById('btn-transform-menu').addEventListener('click', () => {
+                document.getElementById('modal-transform').classList.remove('hidden');
+            });
+
+            document.getElementById('btn-close-transform').addEventListener('click', () => {
+                document.getElementById('modal-transform').classList.add('hidden');
+                showToast('تم حفظ أبعاد وانحناء القطعة الجديدة');
+            });
+
+            const sliderHeight = document.getElementById('slider-height');
+            const sliderWidth = document.getElementById('slider-width');
+            const sliderSlant = document.getElementById('slider-slant');
+            const sliderRotation = document.getElementById('slider-rotation');
+
+            sliderHeight.addEventListener('input', (e) => {
+                blockTransform.height = parseFloat(e.target.value);
+                document.getElementById('val-height').innerText = blockTransform.height.toFixed(1);
+            });
+
+            sliderWidth.addEventListener('input', (e) => {
+                blockTransform.width = parseFloat(e.target.value);
+                document.getElementById('val-width').innerText = blockTransform.width.toFixed(1);
+            });
+
+            sliderSlant.addEventListener('input', (e) => {
+                blockTransform.slant = parseInt(e.target.value);
+                document.getElementById('val-slant').innerText = `${blockTransform.slant}°`;
+            });
+
+            sliderRotation.addEventListener('input', (e) => {
+                blockTransform.rotation = parseInt(e.target.value);
+                document.getElementById('val-rotation').innerText = `${blockTransform.rotation}°`;
+            });
+
+            document.getElementById('btn-orient-vert').addEventListener('click', () => {
+                blockTransform.orientation = 'vertical';
+                document.getElementById('btn-orient-vert').className = 'py-2 rounded-lg bg-indigo-600 text-white font-bold';
+                document.getElementById('btn-orient-horiz').className = 'py-2 rounded-lg bg-slate-800 text-gray-300 font-bold';
+            });
+
+            document.getElementById('btn-orient-horiz').addEventListener('click', () => {
+                blockTransform.orientation = 'horizontal';
+                document.getElementById('btn-orient-horiz').className = 'py-2 rounded-lg bg-indigo-600 text-white font-bold';
+                document.getElementById('btn-orient-vert').className = 'py-2 rounded-lg bg-slate-800 text-gray-300 font-bold';
+            });
+
+            document.getElementById('btn-help').addEventListener('click', () => {
+                document.getElementById('modal-help').classList.remove('hidden');
+            });
+
+            document.getElementById('btn-close-help').addEventListener('click', () => {
+                document.getElementById('modal-help').classList.add('hidden');
+            });
+
+            loadWorldsRegistry();
+            loadLibraryRegistry();
+        }
+
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            checkDeviceOrientation();
+        }
+
+        function animateLoop() {
+            requestAnimationFrame(animateLoop);
+
+            if (lookUp) cameraPitch += 0.03;
+            if (lookDown) cameraPitch -= 0.03;
+            if (lookLeft) cameraYaw += 0.03;
+            if (lookRight) cameraYaw -= 0.03;
+            cameraPitch = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, cameraPitch));
+
+            const moveSpeed = isFlying ? 0.22 : 0.12;
+            const dir = new THREE.Vector3();
+            if (moveForward) dir.z -= 1;
+            if (moveBackward) dir.z += 1;
+            if (moveLeft) dir.x -= 1;
+            if (moveRight) dir.x += 1;
+            dir.normalize();
+            dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYaw);
+            dir.multiplyScalar(moveSpeed);
+
+            playerPos.add(dir);
+
+            if (isFlying) {
+                if (flyUp) playerPos.y += 0.15;
+                if (flyDown) playerPos.y = Math.max(0.5, playerPos.y - 0.15);
+            } else {
+                playerVel.y -= 0.35; // جاذبية
+                playerPos.y += playerVel.y * 0.05;
+                if (playerPos.y < 1.8) {
+                    playerPos.y = 1.8;
+                    playerVel.y = 0;
+                }
+            }
+
+            camera.position.copy(playerPos);
+            camera.rotation.set(cameraPitch, cameraYaw, 0, 'YXZ');
+
+            // إظهار أو إخفاء زر التدوير العائم حسب القطعة المحددة
+            const rotateContainer = document.getElementById('block-rotate-container');
+            if (isRotateToolActive && selectedBlockForRotation) {
+                const vector = selectedBlockForRotation.position.clone();
+                vector.project(camera);
+
+                const x = (vector.x *  .5 + .5) * window.innerWidth;
+                const y = (vector.y * -.5 + .5) * window.innerHeight;
+
+                rotateContainer.style.left = `${x - 24}px`;
+                rotateContainer.style.top = `${y - 65}px`;
+                rotateContainer.classList.remove('hidden');
+                rotateContainer.classList.add('flex');
+
+                const deg = selectedBlockForRotation.userData.transform?.rotation || Math.round(THREE.MathUtils.radToDeg(selectedBlockForRotation.rotation.y)) % 360;
+                document.getElementById('block-rotate-angle-badge').innerText = `${deg}°`;
+            } else {
+                rotateContainer.classList.add('hidden');
+                rotateContainer.classList.remove('flex');
+            }
+
+            if (cloudsGroup) {
+                cloudsGroup.rotation.y += 0.0003;
+            }
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        window.onload = function() {
+            if (initEngine()) {
+                setupUI();
+                animateLoop();
+            }
+        };
+    </script>
+</body>
+</html>
